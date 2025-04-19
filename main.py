@@ -174,26 +174,49 @@ async def pause_campaign(payload: dict = Body(...)):
 
 @app.post("/resume_campaign")
 async def resume_campaign(payload: dict = Body(...)):
-    """
-    Reativa (coloca em ACTIVE) uma campanha pausada do Meta Ads.
-    Body: campaign_id, access_token
-    """
+    # Log inicial do payload completo
+    try:
+        logging.debug(f"[resume_campaign] Payload recebido: {json.dumps(payload, indent=2, ensure_ascii=False)}")
+    except Exception:
+        logging.debug(f"[resume_campaign] Payload recebido (raw): {payload}")
+
     campaign_id  = payload.get("campaign_id")
     access_token = payload.get("access_token")
+
     if not campaign_id or not access_token:
+        logging.error("[resume_campaign] Faltando 'campaign_id' ou 'access_token'")
         raise HTTPException(status_code=400, detail="Faltando 'campaign_id' ou 'access_token'.")
 
     url = f"https://graph.facebook.com/v16.0/{campaign_id}"
-    params = {"status": "ACTIVE", "access_token": access_token}
+    params = {
+        "status": "ACTIVE",
+        "access_token": access_token
+    }
+
+    # Log da URL e dos parâmetros antes da chamada
+    logging.debug(f"[resume_campaign] URL de chamada: {url}")
+    logging.debug(f"[resume_campaign] Parâmetros enviados: {params}")
+
     timeout = aiohttp.ClientTimeout(total=3)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(url, data=params) as resp:
-            text = await resp.text()
-            if resp.status != 200:
-                logging.error(f"Erro ao reativar {campaign_id}: {resp.status} {text}")
-                raise HTTPException(status_code=resp.status, detail=text)
-            logging.info(f"Campanha {campaign_id} reativada")
-            return {"success": True, "campaign_id": campaign_id}
+        try:
+            async with session.post(url, data=params) as resp:
+                text = await resp.text()
+                # Log completo da resposta do Facebook
+                logging.debug(f"[resume_campaign] Resposta HTTP {resp.status}: {text}")
+
+                if resp.status != 200:
+                    logging.error(f"[resume_campaign] Erro ao reativar campanha {campaign_id}: {resp.status} {text}")
+                    raise HTTPException(status_code=resp.status, detail=text)
+
+                logging.info(f"[resume_campaign] Campanha {campaign_id} reativada com sucesso")
+                return {"success": True, "campaign_id": campaign_id}
+
+        except Exception as e:
+            # Log de qualquer exceção na chamada HTTP
+            logging.exception(f"[resume_campaign] Exceção durante request: {e}")
+            raise HTTPException(status_code=502, detail=str(e))
+
 
 if __name__ == "__main__":
     import uvicorn
